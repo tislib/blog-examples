@@ -42,7 +42,7 @@ public class UserSimpleMessageServiceImpl implements UserSimpleMessageService {
         final String routeKey = topicName + "-" + userId;
         String queueName = routeKey + "-" + System.nanoTime();
 
-        amqpAdmin.declareQueue(new Queue(queueName, true, false, false));
+        amqpAdmin.declareQueue(new Queue(queueName, true, false, true));
         amqpAdmin.declareExchange(new TopicExchange(topicName));
 
         Binding binding = new Binding(queueName,
@@ -55,10 +55,6 @@ public class UserSimpleMessageServiceImpl implements UserSimpleMessageService {
 
         return receiver.consumeAutoAck(queueName)
                 .log()
-                .map(item -> new String(item.getBody()))
-                .doOnTerminate(() -> {
-                    amqpAdmin.deleteQueue(queueName);
-                    amqpAdmin.removeBinding(binding);
-                });
+                .map(item -> new String(item.getBody()));
     }
 }

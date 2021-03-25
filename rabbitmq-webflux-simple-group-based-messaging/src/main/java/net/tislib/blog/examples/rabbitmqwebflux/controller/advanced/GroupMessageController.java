@@ -16,18 +16,18 @@ import reactor.core.publisher.Mono;
  * group to user approach
  */
 @RestController
-@RequestMapping("/users/{userId}/messages")
-public class UserMessageController {
+@RequestMapping("/groups/{groupId}/messages")
+public class GroupMessageController {
 
     private final UserMessageService userMessageService;
 
-    public UserMessageController(UserMessageService userMessageService) {
+    public GroupMessageController(UserMessageService userMessageService) {
         this.userMessageService = userMessageService;
     }
 
-    @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> receive(@PathVariable long userId) {
-        return userMessageService.receive(userId);
+    @PostMapping
+    public Mono<Void> sendMessage(@PathVariable long groupId, @RequestBody String content) {
+        return userMessageService.sendMessage(groupId, content);
     }
 
 }

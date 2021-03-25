@@ -1,6 +1,5 @@
-package net.tislib.blog.examples.rabbitmqwebflux.controller.advanced;
+package net.tislib.blog.examples.rabbitmqwebflux.controller;
 
-import net.tislib.blog.examples.rabbitmqwebflux.service.UserMessageService;
 import net.tislib.blog.examples.rabbitmqwebflux.service.UserSimpleMessageService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,21 +12,26 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * group to user approach
+ * user to user approach
  */
 @RestController
 @RequestMapping("/users/{userId}/messages")
-public class UserMessageController {
+public class UserSimpleMessageController {
 
-    private final UserMessageService userMessageService;
+    private final UserSimpleMessageService userSimpleMessageService;
 
-    public UserMessageController(UserMessageService userMessageService) {
-        this.userMessageService = userMessageService;
+    public UserSimpleMessageController(UserSimpleMessageService userSimpleMessageService) {
+        this.userSimpleMessageService = userSimpleMessageService;
+    }
+
+    @PostMapping
+    public Mono<Void> sendMessage(@PathVariable long userId, @RequestBody String content) {
+        return userSimpleMessageService.sendMessage(userId, content);
     }
 
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> receive(@PathVariable long userId) {
-        return userMessageService.receive(userId);
+        return userSimpleMessageService.receive(userId);
     }
 
 }
