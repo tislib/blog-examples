@@ -34,6 +34,8 @@ public class RabbitMqConfiguration {
         return Mono.fromCallable(() -> connectionFactory.newConnection("reactor-rabbit")).cache();
     }
 
+    // SOLUTION, Auto recovery mode is removed, instead connection is checked if is not open, new connection is returned
+    // This will help to close Flux who is listening auto-delete queues and will stall if connection is recovered after network or broker fault
 //    @Bean
 //    Mono<Connection> rabbitMqConnection(RabbitProperties rabbitProperties) {
 //        ConnectionFactory connectionFactory = new ConnectionFactory();
