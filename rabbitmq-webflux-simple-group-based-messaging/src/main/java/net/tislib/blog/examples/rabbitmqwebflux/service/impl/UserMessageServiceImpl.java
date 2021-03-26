@@ -3,20 +3,19 @@ package net.tislib.blog.examples.rabbitmqwebflux.service.impl;
 import com.rabbitmq.client.Delivery;
 import net.tislib.blog.examples.rabbitmqwebflux.service.UserMessageService;
 import net.tislib.blog.examples.rabbitmqwebflux.service.UserService;
-import org.springframework.amqp.core.AmqpAdmin;
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.core.TopicExchange;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
+import reactor.rabbitmq.BindingSpecification;
 import reactor.rabbitmq.ConsumeOptions;
+import reactor.rabbitmq.ExchangeSpecification;
 import reactor.rabbitmq.OutboundMessage;
+import reactor.rabbitmq.QueueSpecification;
 import reactor.rabbitmq.Receiver;
 import reactor.rabbitmq.Sender;
 
-import java.util.HashMap;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -26,16 +25,14 @@ public class UserMessageServiceImpl implements UserMessageService {
 
     private final Sender sender;
     private final Receiver receiver;
-    private final AmqpAdmin amqpAdmin;
     private final UserService userService;
 
     private final String topicName = "user-group-message";
     private final Map<String, Sinks.Many<Delivery>> groupConsumerMap = new ConcurrentHashMap<>();
 
-    public UserMessageServiceImpl(Sender sender, Receiver receiver, AmqpAdmin amqpAdmin, UserService userService) {
+    public UserMessageServiceImpl(Sender sender, Receiver receiver, UserService userService) {
         this.sender = sender;
         this.receiver = receiver;
-        this.amqpAdmin = amqpAdmin;
         this.userService = userService;
     }
 
@@ -45,18 +42,32 @@ public class UserMessageServiceImpl implements UserMessageService {
 
         OutboundMessage message = new OutboundMessage(topicName, routingKey, content.getBytes());
 
-        return sender.send(Mono.fromSupplier(() -> message));
+        return sender.declareExchange(ExchangeSpecification.exchange()
+                .name(topicName)
+                .durable(true)
+                .type("topic"))
+                .flatMap(item -> sender.send(Mono.fromSupplier(() -> message)));
     }
 
     @Override
     @SuppressWarnings("ALL")
-    public Flux<String> receive(long userId) {
+    public Flux<String> receive(long userId, Duration timeout, Integer maxMessageCount) {
         Flux<Long> groupIds = userService.locateGroups(userId);
 
-        return groupIds.map(item -> getGroupReceiver(item))
+        Flux<String> result = groupIds.map(item -> getGroupReceiver(item))
                 .flatMap(item -> item)
                 .log("receiver-log", Level.FINER)
                 .map(item -> new String(item.getBody()));
+
+        if (timeout != null) {
+            result = result.timeout(timeout);
+        }
+
+        if (maxMessageCount != null) {
+            result = result.limitRequest(maxMessageCount);
+        }
+
+        return result;
     }
 
     private Flux<Delivery> getGroupReceiver(Long groupId) {
@@ -72,23 +83,19 @@ public class UserMessageServiceImpl implements UserMessageService {
     }
 
     private synchronized void registerGroupReceiver(String routingKey) {
-        String queueName = routingKey + "-" + System.nanoTime();
-
-        amqpAdmin.declareExchange(new TopicExchange(topicName));
-
-        amqpAdmin.declareQueue(new Queue(queueName, true, false, true));
-
-        Binding binding = new Binding(queueName,
-                Binding.DestinationType.QUEUE,
-                topicName,
-                routingKey,
-                new HashMap<>());
-
-        amqpAdmin.declareBinding(binding);
-
         Sinks.Many<Delivery> sink = Sinks.many().multicast().onBackpressureBuffer();
 
-        receiver.consumeAutoAck(queueName, new ConsumeOptions())
+        Mono<String> declareQueue = sender
+                .declareQueue(QueueSpecification.queue())
+                .log("declare-queue", Level.FINER)
+                .flatMap(declareOk ->
+                        sender.bindQueue(BindingSpecification.binding()
+                                .queue(declareOk.getQueue())
+                                .exchange(topicName)
+                                .routingKey(routingKey)).map(bindOk -> declareOk.getQueue()))
+                .log("bind-queue", Level.FINER);
+
+        declareQueue.flatMapMany(queueName -> receiver.consumeAutoAck(queueName, new ConsumeOptions()))
                 .log("broker-log", Level.FINER)
                 .doOnNext(sink::tryEmitNext)
                 .doOnComplete(sink::tryEmitComplete)

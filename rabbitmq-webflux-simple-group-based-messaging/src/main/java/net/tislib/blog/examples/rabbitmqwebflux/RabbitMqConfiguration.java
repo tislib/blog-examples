@@ -2,6 +2,7 @@ package net.tislib.blog.examples.rabbitmqwebflux;
 
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.amqp.RabbitProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,11 +13,13 @@ import reactor.rabbitmq.ReceiverOptions;
 import reactor.rabbitmq.Sender;
 import reactor.rabbitmq.SenderOptions;
 
-import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.PreDestroy;
 
 @Configuration
 public class RabbitMqConfiguration {
+
+    @Autowired
+    private Mono<Connection> rabbitMqConnectionMono;
 
     // the mono for connection, it is cached to re-use the connection across sender and receiver instances
     // this should work properly in most cases
@@ -26,24 +29,10 @@ public class RabbitMqConfiguration {
         connectionFactory.setHost(rabbitProperties.getHost());
         connectionFactory.setPort(rabbitProperties.getPort());
         connectionFactory.useNio();
-
-        connectionFactory.setAutomaticRecoveryEnabled(false);
-        connectionFactory.setTopologyRecoveryEnabled(false);
-
+        connectionFactory.setAutomaticRecoveryEnabled(true);
         connectionFactory.setUsername(rabbitProperties.getUsername());
         connectionFactory.setPassword(rabbitProperties.getPassword());
-
-        Callable<Connection> connectionProvider = () -> connectionFactory.newConnection("reactor-rabbit");
-
-        AtomicReference<Connection> cachedConnection = new AtomicReference<>();
-
-        return Mono.fromCallable(() -> {
-            if (cachedConnection.get() == null || !cachedConnection.get().isOpen()) {
-                cachedConnection.set(connectionProvider.call());
-            }
-
-            return cachedConnection.get();
-        });
+        return Mono.fromCallable(() -> connectionFactory.newConnection("reactor-rabbit")).cache();
     }
 
     @Bean
@@ -58,9 +47,9 @@ public class RabbitMqConfiguration {
                 .connectionMono(connectionMono));
     }
 
-//    @PreDestroy
-//    public void close(Mono<Connection> rabbitMqConnectionMono) throws Exception {
-//        rabbitMqConnectionMono.block().close();
-//    }
+    @PreDestroy
+    public void close() throws Exception {
+        rabbitMqConnectionMono.block().close();
+    }
 
 }

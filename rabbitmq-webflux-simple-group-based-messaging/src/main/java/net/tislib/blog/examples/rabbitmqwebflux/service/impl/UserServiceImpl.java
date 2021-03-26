@@ -4,9 +4,6 @@ import net.tislib.blog.examples.rabbitmqwebflux.service.UserService;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
-import java.util.Arrays;
-import java.util.List;
-
 @Service
 public class UserServiceImpl implements UserService {
     @Override
