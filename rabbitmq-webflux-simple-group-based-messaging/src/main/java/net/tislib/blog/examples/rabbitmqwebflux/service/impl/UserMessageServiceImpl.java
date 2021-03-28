@@ -1,5 +1,6 @@
 package net.tislib.blog.examples.rabbitmqwebflux.service.impl;
 
+import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Delivery;
 import net.tislib.blog.examples.rabbitmqwebflux.service.UserMessageService;
 import net.tislib.blog.examples.rabbitmqwebflux.service.UserService;
@@ -42,10 +43,14 @@ public class UserMessageServiceImpl implements UserMessageService {
 
         OutboundMessage message = new OutboundMessage(topicName, routingKey, content.getBytes());
 
-        return sender.declareExchange(ExchangeSpecification.exchange()
-                .name(topicName)
-                .durable(true)
-                .type("topic"))
+        final Mono<AMQP.Exchange.DeclareOk> declareExchange = sender.declareExchange(
+                ExchangeSpecification.exchange()
+                        .name(topicName)
+                        .durable(true)
+                        .type("topic")
+        );
+
+        return declareExchange
                 .flatMap(item -> sender.send(Mono.fromSupplier(() -> message)));
     }
 
@@ -54,8 +59,7 @@ public class UserMessageServiceImpl implements UserMessageService {
     public Flux<String> receive(long userId, Duration timeout, Integer maxMessageCount) {
         Flux<Long> groupIds = userService.locateGroups(userId);
 
-        Flux<String> result = groupIds.map(item -> getGroupReceiver(item))
-                .flatMap(item -> item)
+        Flux<String> result = groupIds.flatMap(item -> getGroupReceiver(item))
                 .log("receiver-log", Level.FINER)
                 .map(item -> new String(item.getBody()));
 

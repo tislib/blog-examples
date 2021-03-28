@@ -1,5 +1,6 @@
 package net.tislib.blog.examples.rabbitmqwebflux.service.impl;
 
+import com.rabbitmq.client.AMQP;
 import net.tislib.blog.examples.rabbitmqwebflux.service.UserSimpleMessageService;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -33,10 +34,14 @@ public class UserSimpleMessageServiceImpl implements UserSimpleMessageService {
 
         OutboundMessage message = new OutboundMessage(topicName, routingKey, content.getBytes());
 
-        return sender.declareExchange(ExchangeSpecification.exchange()
-                .name(topicName)
-                .durable(true)
-                .type("topic"))
+        final Mono<AMQP.Exchange.DeclareOk> declareExchange = sender.declareExchange(
+                ExchangeSpecification.exchange()
+                        .name(topicName)
+                        .durable(true)
+                        .type("topic")
+        );
+
+        return declareExchange
                 .flatMap(item -> sender.send(Mono.fromSupplier(() -> message)));
     }
 
@@ -44,15 +49,21 @@ public class UserSimpleMessageServiceImpl implements UserSimpleMessageService {
     public Flux<String> receive(long userId, Duration timeout, Integer maxMessageCount) {
         final String routingKey = topicName + "-" + userId;
 
-        Flux<String> result = sender
+        final Mono<AMQP.Queue.DeclareOk> declareQueue = sender
                 .declareQueue(QueueSpecification.queue())
-                .log("declare-queue", Level.FINER)
+                .log("declare-queue", Level.FINER);
+
+        final Mono<String> bindQueue = declareQueue
                 .flatMap(declareOk ->
-                        sender.bindQueue(BindingSpecification.binding()
-                                .queue(declareOk.getQueue())
-                                .exchange(topicName)
-                                .routingKey(routingKey)).map(bindOk -> declareOk.getQueue()))
-                .log("bind-queue", Level.FINER)
+                        sender.bindQueue(
+                                BindingSpecification.binding()
+                                        .queue(declareOk.getQueue())
+                                        .exchange(topicName)
+                                        .routingKey(routingKey)
+                        ).map(bindOk -> declareOk.getQueue())) // this code is for returning queueName instead of bind result
+                .log("bind-queue", Level.FINER);
+
+        Flux<String> result = bindQueue
                 .flatMapMany(receiver::consumeAutoAck)
                 .map(item -> new String(item.getBody()));
 

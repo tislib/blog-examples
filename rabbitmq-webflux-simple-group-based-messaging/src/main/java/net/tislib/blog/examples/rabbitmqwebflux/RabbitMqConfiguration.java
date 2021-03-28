@@ -28,8 +28,7 @@ public class RabbitMqConfiguration {
         ConnectionFactory connectionFactory = new ConnectionFactory();
         connectionFactory.setHost(rabbitProperties.getHost());
         connectionFactory.setPort(rabbitProperties.getPort());
-        connectionFactory.useNio();
-        connectionFactory.setAutomaticRecoveryEnabled(true);
+        connectionFactory.useNio();  // <- with this flag our RabbitMq connection will be non-blocking
         connectionFactory.setUsername(rabbitProperties.getUsername());
         connectionFactory.setPassword(rabbitProperties.getPassword());
         return Mono.fromCallable(() -> connectionFactory.newConnection("reactor-rabbit")).cache();
