@@ -1,7 +1,7 @@
 package net.tislib.blog.examples.rabbitmqwebflux.service.impl;
 
 import com.rabbitmq.client.AMQP;
-import net.tislib.blog.examples.rabbitmqwebflux.service.UserSimpleMessageService;
+import net.tislib.blog.examples.rabbitmqwebflux.service.UserMessageService;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -16,14 +16,14 @@ import java.time.Duration;
 import java.util.logging.Level;
 
 @Service
-public class UserSimpleMessageServiceImpl implements UserSimpleMessageService {
+public class UserMessageServiceImpl implements UserMessageService {
 
     private final Sender sender;
     private final Receiver receiver;
 
     private final String topicName = "user-simple-message";
 
-    public UserSimpleMessageServiceImpl(Sender sender, Receiver receiver) {
+    public UserMessageServiceImpl(Sender sender, Receiver receiver) {
         this.sender = sender;
         this.receiver = receiver;
     }
@@ -60,7 +60,8 @@ public class UserSimpleMessageServiceImpl implements UserSimpleMessageService {
                                         .queue(declareOk.getQueue())
                                         .exchange(topicName)
                                         .routingKey(routingKey)
-                        ).map(bindOk -> declareOk.getQueue())) // this code is for returning queueName instead of bind result
+                        ).map(bindOk -> declareOk.getQueue()))
+                // this code is for returning queueName instead of bind result
                 .log("bind-queue", Level.FINER);
 
         Flux<String> result = bindQueue

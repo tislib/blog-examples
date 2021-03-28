@@ -1,18 +1,21 @@
-package net.tislib.blog.examples.rabbitmqwebflux.controller.advanced;
+package net.tislib.blog.examples.rabbitmqwebflux.controller;
 
 import net.tislib.blog.examples.rabbitmqwebflux.service.UserMessageService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
 /**
- * group to user approach
+ * user to user approach
  */
 @RestController
 @RequestMapping("/users/{userId}/messages")
@@ -22,6 +25,12 @@ public class UserMessageController {
 
     public UserMessageController(UserMessageService userMessageService) {
         this.userMessageService = userMessageService;
+    }
+
+    @PostMapping
+    public Mono<Void> sendMessage(@PathVariable long userId,
+                                  @RequestBody String content) {
+        return userMessageService.sendMessage(userId, content);
     }
 
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)

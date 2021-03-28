@@ -6,7 +6,7 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 
 public interface UserMessageService {
-    Mono<Void> sendMessage(long groupId, String content);
+    Mono<Void> sendMessage(long userId, String content);
 
     Flux<String> receive(long userId, Duration timeout, Integer maxMessageCount);
 }
